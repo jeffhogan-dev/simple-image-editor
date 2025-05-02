@@ -62,12 +62,6 @@ function EditorScreen({ route, navigation }: any) {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={styles.container}>
         <DrawingCanvas imageUri={imageUri} style={styles.canvas} />
-        <View style={styles.buttonContainer}>
-          <Button
-            title="Go back"
-            onPress={() => navigation.goBack()}
-          />
-        </View>
         <StatusBar style="auto" />
       </View>
     </GestureHandlerRootView>

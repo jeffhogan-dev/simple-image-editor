@@ -73,8 +73,6 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ imageUri, style })
       x = (containerSize.width - renderedWidth) / 2;
       y = 0;
     }
-
-    console.log('Calculated image bounds:', { x, y, width: renderedWidth, height: renderedHeight });
     return { x, y, width: renderedWidth, height: renderedHeight };
   }, [imageSize, containerSize]);
 
@@ -128,18 +126,43 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ imageUri, style })
           const { pageX, pageY } = event.nativeEvent;
           const point = transformCoordinates(pageX, pageY);
           if (currentPath && point) {
-            setCurrentPath((prevPath: string) => `${prevPath} L ${point.x} ${point.y}`);
+            if (isEraser) {
+              // For eraser, update the eraser path
+              setCurrentPath((prevPath: string) => `${prevPath} L ${point.x} ${point.y}`);
+              
+              // Add a new path with solid white color
+              setPaths((prevPaths: DrawPath[]) => [...prevPaths, {
+                path: currentPath,
+                color: '#FFFFFF',
+                strokeWidth: brushSize,
+                isEraser: true,
+                isImageEraser: false
+              }]);
+            } else {
+              setCurrentPath((prevPath: string) => `${prevPath} L ${point.x} ${point.y}`);
+            }
           }
         },
         onPanResponderRelease: () => {
           if (currentPath) {
-            setPaths((prevPaths: DrawPath[]) => [...prevPaths, {
-              path: currentPath,
-              color: isEraser ? '#FFFFFF' : selectedColor,
-              strokeWidth: brushSize,
-              isEraser: isEraser,
-              isImageEraser: false
-            }]);
+            if (isEraser) {
+              // Add the final eraser path with solid white color
+              setPaths((prevPaths: DrawPath[]) => [...prevPaths, {
+                path: currentPath,
+                color: '#FFFFFF',
+                strokeWidth: brushSize,
+                isEraser: true,
+                isImageEraser: false
+              }]);
+            } else {
+              setPaths((prevPaths: DrawPath[]) => [...prevPaths, {
+                path: currentPath,
+                color: selectedColor,
+                strokeWidth: brushSize,
+                isEraser: false,
+                isImageEraser: false
+              }]);
+            }
             setCurrentPath('');
             setUndoStack([]);
           }
@@ -214,6 +237,33 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ imageUri, style })
 
   return (
     <View style={[styles.container, style]}>
+      {/* Top Toolbar */}
+      <View style={styles.topToolbar}>
+        <TouchableOpacity
+          style={[styles.toolButton, paths.length === 0 && styles.disabledButton]}
+          onPress={handleClear}
+          disabled={paths.length === 0}
+        >
+          <Text style={styles.toolButtonText}>Clear</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.toolButton, paths.length === 0 && styles.disabledButton]}
+          onPress={handleUndo}
+          disabled={paths.length === 0}
+        >
+          <Text style={styles.toolButtonText}>Undo</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.toolButton, undoStack.length === 0 && styles.disabledButton]}
+          onPress={handleRedo}
+          disabled={undoStack.length === 0}
+        >
+          <Text style={styles.toolButtonText}>Redo</Text>
+        </TouchableOpacity>
+      </View>
+
       <ViewShot ref={viewShotRef} style={styles.canvasContainer}>
         <View 
           ref={containerRef}
@@ -257,8 +307,8 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ imageUri, style })
                   stroke={path.color}
                   strokeWidth={path.strokeWidth}
                   fill="none"
-                  strokeOpacity={path.isEraser ? 0.3 : 1}
-                  opacity={path.isEraser ? 0.3 : 1}
+                  strokeOpacity={1}
+                  opacity={1}
                 />
               ))}
               {currentPath && (
@@ -268,61 +318,16 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ imageUri, style })
                   stroke={isEraser ? '#FFFFFF' : selectedColor}
                   strokeWidth={brushSize}
                   fill="none"
-                  opacity={isEraser ? 0.3 : 1}
+                  opacity={1}
                 />
               )}
             </Svg>
           </View>
-          {/* Masking borders */}
-          <View style={styles.maskContainer} pointerEvents="none">
-            {/* Top mask */}
-            <View style={[
-              styles.topMask,
-              {
-                left: 0,
-                width: containerSize.width,
-                height: renderedImageBounds.y,
-                backgroundColor: '#fff',
-              }
-            ]} />
-            {/* Bottom mask */}
-            <View style={[
-              styles.bottomMask,
-              {
-                top: renderedImageBounds.y + renderedImageBounds.height,
-                left: 0,
-                width: containerSize.width,
-                height: containerSize.height - (renderedImageBounds.y + renderedImageBounds.height),
-                backgroundColor: '#fff',
-              }
-            ]} />
-            {/* Left mask */}
-            <View style={[
-              styles.leftMask,
-              {
-                top: renderedImageBounds.y,
-                width: renderedImageBounds.x,
-                height: renderedImageBounds.height,
-                backgroundColor: '#fff',
-              }
-            ]} />
-            {/* Right mask */}
-            <View style={[
-              styles.rightMask,
-              {
-                top: renderedImageBounds.y,
-                left: renderedImageBounds.x + renderedImageBounds.width,
-                width: containerSize.width - (renderedImageBounds.x + renderedImageBounds.width),
-                height: renderedImageBounds.height,
-                backgroundColor: '#fff',
-              }
-            ]} />
-          </View>
         </View>
       </ViewShot>
 
-      {/* Drawing Tools */}
-      <View style={styles.toolbarContainer}>
+      {/* Bottom Toolbar */}
+      <View style={styles.bottomToolbar}>
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false} 
@@ -359,32 +364,6 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ imageUri, style })
             }}
           >
             <Text style={styles.toolButtonText}>Eraser</Text>
-          </TouchableOpacity>
-
-          {/* Clear Button */}
-          <TouchableOpacity
-            style={[styles.toolButton, paths.length === 0 && styles.disabledButton]}
-            onPress={handleClear}
-            disabled={paths.length === 0}
-          >
-            <Text style={styles.toolButtonText}>Clear</Text>
-          </TouchableOpacity>
-
-          {/* Undo/Redo */}
-          <TouchableOpacity
-            style={[styles.toolButton, paths.length === 0 && styles.disabledButton]}
-            onPress={handleUndo}
-            disabled={paths.length === 0}
-          >
-            <Text style={styles.toolButtonText}>Undo</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.toolButton, undoStack.length === 0 && styles.disabledButton]}
-            onPress={handleRedo}
-            disabled={undoStack.length === 0}
-          >
-            <Text style={styles.toolButtonText}>Redo</Text>
           </TouchableOpacity>
         </ScrollView>
 
@@ -471,35 +450,23 @@ const styles = StyleSheet.create({
   svgContainer: {
     ...StyleSheet.absoluteFillObject,
   },
-  maskContainer: {
-    ...StyleSheet.absoluteFillObject,
-    pointerEvents: 'none',
-  },
-  topMask: {
-    position: 'absolute',
-    top: 0,
-    backgroundColor: '#fff',
-  },
-  bottomMask: {
-    position: 'absolute',
-    backgroundColor: '#fff',
-  },
-  leftMask: {
-    position: 'absolute',
-    left: 0,
-    backgroundColor: '#fff',
-  },
-  rightMask: {
-    position: 'absolute',
-    backgroundColor: '#fff',
-  },
-  toolbarContainer: {
-    position: 'absolute',
-    bottom: 80,
-    left: 0,
-    right: 0,
+  topToolbar: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    gap: 8,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
     zIndex: 2,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ffffff30',
+  },
+  bottomToolbar: {
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    zIndex: 2,
+    borderTopWidth: 1,
+    borderTopColor: '#ffffff30',
   },
   mainToolbar: {
     maxHeight: 60,
