@@ -47,6 +47,7 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ imageUri, style })
 
   const onImageLoad = (event: any) => {
     const { width, height } = event.nativeEvent.source;
+    console.log('Image loaded with dimensions:', { width, height });
     setImageSize({ width, height });
   };
 
@@ -60,7 +61,17 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ imageUri, style })
     const containerAspectRatio = containerSize.width / containerSize.height;
     let renderedWidth, renderedHeight, x, y;
 
-    if (imageAspectRatio > containerAspectRatio) {
+    // If image is smaller than container in both dimensions, scale it up
+    if (imageSize.width < containerSize.width && imageSize.height < containerSize.height) {
+      const widthScale = containerSize.width / imageSize.width;
+      const heightScale = containerSize.height / imageSize.height;
+      const scale = Math.min(widthScale, heightScale);
+      
+      renderedWidth = imageSize.width * scale;
+      renderedHeight = imageSize.height * scale;
+      x = (containerSize.width - renderedWidth) / 2;
+      y = (containerSize.height - renderedHeight) / 2;
+    } else if (imageAspectRatio > containerAspectRatio) {
       // Image is wider relative to container - fit to width
       renderedWidth = containerSize.width;
       renderedHeight = containerSize.width / imageAspectRatio;
@@ -79,6 +90,7 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ imageUri, style })
   // Update rendered bounds when container or image size changes
   React.useEffect(() => {
     const bounds = calculateRenderedImageBounds();
+    console.log('Updated rendered bounds:', bounds);
     setRenderedImageBounds(bounds);
   }, [containerSize, imageSize, calculateRenderedImageBounds]);
 
@@ -238,7 +250,9 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ imageUri, style })
   return (
     <View style={[styles.container, style]}>
       {/* Top Toolbar */}
-      <View style={styles.topToolbar}>
+      <View style={[styles.topToolbar, {
+        position: 'relative'
+      }]}>
         <TouchableOpacity
           style={[styles.toolButton, paths.length === 0 && styles.disabledButton]}
           onPress={handleClear}
@@ -264,26 +278,35 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ imageUri, style })
         </TouchableOpacity>
       </View>
 
-      <ViewShot ref={viewShotRef} style={styles.canvasContainer}>
-        <View 
-          ref={containerRef}
-          style={styles.imageAndDrawingContainer}
-          onLayout={(event) => {
-            const { width, height } = event.nativeEvent.layout;
-            setContainerSize({ width, height });
-          }}
+      <View 
+        ref={containerRef}
+        style={styles.canvasContainer}
+        onLayout={(event) => {
+          const { width, height } = event.nativeEvent.layout;
+          setContainerSize({ width, height });
+        }}
+      >
+        <ViewShot 
+          ref={viewShotRef} 
+          style={[styles.imageAndDrawingContainer, {
+            width: renderedImageBounds.width || '100%',
+            height: renderedImageBounds.height || '100%',
+            left: renderedImageBounds.x,
+            top: renderedImageBounds.y,
+            position: 'absolute',
+          }]}
         >
           <View style={[styles.imageAndDrawingContainer, {
             overflow: 'hidden',
-            position: 'relative'
+            position: 'relative',
+            width: '100%',
+            height: '100%',
           }]} {...panResponder.panHandlers}>
             <Image
               source={{ uri: imageUri }}
               style={[styles.image, {
-                width: renderedImageBounds.width || '100%',
-                height: renderedImageBounds.height || '100%',
-                left: renderedImageBounds.x,
-                top: renderedImageBounds.y,
+                width: '100%',
+                height: '100%',
                 position: 'absolute',
               }]}
               resizeMode="contain"
@@ -293,10 +316,8 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ imageUri, style })
               }}
             />
             <Svg style={[styles.svgContainer, {
-              width: renderedImageBounds.width || '100%',
-              height: renderedImageBounds.height || '100%',
-              left: renderedImageBounds.x,
-              top: renderedImageBounds.y,
+              width: '100%',
+              height: '100%',
               position: 'absolute',
               pointerEvents: 'none'
             }]}>
@@ -323,11 +344,13 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ imageUri, style })
               )}
             </Svg>
           </View>
-        </View>
-      </ViewShot>
+        </ViewShot>
+      </View>
 
       {/* Bottom Toolbar */}
-      <View style={styles.bottomToolbar}>
+      <View style={[styles.bottomToolbar, {
+        position: 'relative'
+      }]}>
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false} 
@@ -421,7 +444,7 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ imageUri, style })
 
       {/* Save Button */}
       <TouchableOpacity 
-        style={styles.saveButton} 
+        style={[styles.saveButton]} 
         onPress={saveImage}
       >
         <Text style={styles.saveButtonText}>Save Image</Text>
